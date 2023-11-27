@@ -1,0 +1,16 @@
+﻿@model Dictionary<string, object>
+@{
+    ViewData["Title"] = "Index";
+}
+
+
+<div class="container">
+    <div class="bg-primary m-1 p-1 text-white"><h4>User Details</h4></div>
+    <table class="table table-sm table-bordered m-1 p-1">
+        @foreach (var item in Model)
+        {
+            <tr><th>@item.Key</th><td>@item.Value</td></tr>
+        }
+    </table>
+</div>
+
