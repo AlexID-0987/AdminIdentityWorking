@@ -10,10 +10,17 @@ namespace Users.Controllers
 {
     public class AdminController : Controller
     {
-        public UserManager<AppUser> userManager;
-        public AdminController(UserManager<AppUser> user)
+        private UserManager<AppUser> userManager;
+        private IUserValidator<AppUser> userValidator;
+        private IPasswordValidator<AppUser> passwordValidator;
+        private IPasswordHasher<AppUser> passwordHasher;
+
+        public AdminController(UserManager<AppUser> user, IUserValidator<AppUser> validator, IPasswordValidator<AppUser> password, IPasswordHasher<AppUser> hasher)
         {
             userManager = user;
+            userValidator = validator;
+            passwordValidator = password;
+            passwordHasher = hasher;
         }
         public IActionResult Index() => View(userManager.Users);
 
@@ -43,6 +50,92 @@ namespace Users.Controllers
                 }
             }
             return View(model);
+        }
+        [HttpPost]
+        public async Task<IActionResult> Delete(string id)
+        {
+            AppUser user = await userManager.FindByIdAsync(id);
+            if(user!=null)
+            {
+                IdentityResult result = await userManager.DeleteAsync(user);
+                if(result.Succeeded)
+                {
+                    return RedirectToAction("Index");
+                }
+                else
+                {
+                    AddErrorsFromResult(result);
+                }
+            }
+            else
+            {
+                ModelState.AddModelError(" ", "User not Found");
+            }
+            return View("Index", userManager.Users);
+        }
+        private void AddErrorsFromResult(IdentityResult result)
+        {
+            foreach (IdentityError error in result.Errors)
+            {
+                ModelState.AddModelError(" ", error.Description);
+            }
+        }
+        public async Task<IActionResult> Edit(string id)
+        {
+            AppUser appUser = await userManager.FindByIdAsync(id);
+            if(appUser!=null)
+            {
+                return View(appUser);
+            }
+            else
+            {
+                return RedirectToAction("Index");
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Edit(string id, string email, string password)
+        {
+            AppUser user = await userManager.FindByIdAsync(id);
+            if (user != null)
+            {
+                user.Email = email;
+                IdentityResult validEmail = await userValidator.ValidateAsync(userManager, user);
+                if(!validEmail.Succeeded)
+                {
+                    AddErrorsFromResult(validEmail);
+                }
+                IdentityResult validPass = null;
+                if (!string.IsNullOrEmpty(password))
+                {
+                    validPass = await passwordValidator.ValidateAsync(userManager, user, password);
+                    if (validPass.Succeeded)
+                    {
+                        user.PasswordHash = passwordHasher.HashPassword(user, password);
+                    }
+                    else
+                    {
+                        AddErrorsFromResult(validPass);
+                    }
+                }
+                if ((validEmail.Succeeded && validPass == null) || (validEmail.Succeeded && password != string.Empty && validPass.Succeeded))
+                {
+                    IdentityResult result = await userManager.UpdateAsync(user);
+                    if(result.Succeeded)
+                    {
+                        return RedirectToAction("Index");
+                    }
+                    else
+                    {
+                        AddErrorsFromResult(result);
+                    }
+                }
+            }
+            else
+            {
+                ModelState.AddModelError(" ", "User not found!!!!");
+            }
+            return View(user);
         }
     }
 }
